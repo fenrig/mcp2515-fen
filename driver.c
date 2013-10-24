@@ -1,5 +1,5 @@
 /* http://www.linuxchix.org/content/courses/kernel_hacking/lesson5
- *
+ * http://www.linuxjournal.com/article/8110?page=0,1
  */
 
 #include <linux/init.h>
@@ -17,6 +17,8 @@
 #include <linux/spi/spidev.h>
 #include <linux/types.h>
 #include <linux/delay.h>
+#include <linux/fcntl.h>
+#include <linux/syscalls.h>
 
 MODULE_LICENSE("Dual BSD/GPL");
 #define MODULE_NAME "mcp2515-fen"
@@ -46,12 +48,18 @@ typedef struct{
 spi_data spidata = {.rx = NULL, .tx = NULL, .rx_size = 0};
 spi_device spi = {.device = 0, .mode = 0xff, .bitsPerWord = 0xffff, .delay_usecs = 0x0000, .speed = 0xffffffff};
 
+mm_segment_t old_fs;
+
 int openSPI(char* devicename){
 	if(spi.device > 0){
 		printk(KERN_ALERT "SPI: SPI device already open, please close it.\n");
 		return 2;
 	}
-	spi.device = open(devicename, O_RDWR);
+
+	mm_segment_t old_fs = get_fs();
+	set_fs(KERNEL_DS);
+
+	spi.device = sys_open(devicename, O_RDWR);
 	if(spi.device < 1){
 		printk(KERN_ALERT "SPI: Couldn't open spi device\n");
 		return 1;
@@ -120,7 +128,8 @@ int closeSPI(void){
 		printk(KERN_ALERT "SPI: SPI Device not open yet.\n");
 		return 0; // Returns 0 because SPI is closed
 	}
-	close(spi.device);
+	sys_close(spi.device);
+	set_fs(old_fs);
 	spi.device = 0;
 	return 0;
 }
