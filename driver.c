@@ -30,21 +30,21 @@ MODULE_LICENSE("Dual BSD/GPL");
 #define DEVICE "/dev/spidev0.0"
 
 typedef struct{
-	int device = 0;
-	__u8 mode = 0xff;
-	__u16 bitsPerWord = 0xffff;
-	__u16 delay_usecs = 0x0000;
-	__u32 speed = 0xffffffff;
+	int device;
+	__u8 mode;
+	__u16 bitsPerWord;
+	__u16 delay_usecs;
+	__u32 speed;
 } spi_device;
 
 typedef struct{
-	__u8* rx = NULL;
-	__u8* tx = NULL;
-	__u64 rx_size = 0;
+	__u8* rx;
+	__u8* tx;
+	__u64 rx_size;
 } spi_data;
 
-spi_data spidata;
-spi_device spi;
+spi_data spidata = {.rx = NULL, .tx = NULL, .rx_size = 0};
+spi_device spi = {.device = 0, .mode = 0xff, .bitsPerWord = 0xffff, .delay_usecs = 0x0000, .speed = 0xffffffff};
 
 int openSPI(char* devicename = DEVICE){
 	if(spi.device > 0){
