@@ -2,7 +2,7 @@
 # kernel build system and can use its language.
 ifneq ($(KERNELRELEASE),)
         mcp2515-fen-objs := driver.o
-        obj-m := scull.o
+        #obj-m := scull.o
 
 # Otherwise we were called directly from the command
 # line; invoke the kernel build system.
