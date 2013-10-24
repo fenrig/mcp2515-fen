@@ -46,7 +46,7 @@ typedef struct{
 spi_data spidata = {.rx = NULL, .tx = NULL, .rx_size = 0};
 spi_device spi = {.device = 0, .mode = 0xff, .bitsPerWord = 0xffff, .delay_usecs = 0x0000, .speed = 0xffffffff};
 
-int openSPI(char* devicename = DEVICE){
+int openSPI(char* devicename){
 	if(spi.device > 0){
 		printk(KERN_ALERT "SPI: SPI device already open, please close it.\n");
 		return 2;
@@ -59,12 +59,12 @@ int openSPI(char* devicename = DEVICE){
 	return 0;
 }
 
-int setSPIDelay(__u16 usecs = DELAY){
+int setSPIDelay(__u16 usecs){
 	spi.delay_usecs = usecs;
 	return 0;
 }
 
-int setSPISpeed(__u32 speed = SPEED){
+int setSPISpeed(__u32 speed){
 	if(spi.device < 1){
 		printk(KERN_ALERT "SPI: SPI Device not open yet.\n");
 		return 1;
@@ -81,7 +81,7 @@ int setSPISpeed(__u32 speed = SPEED){
 	return 0;
 }
 
-int setSPIBitsPerWord(__u16 bitsPerWord = BPW){
+int setSPIBitsPerWord(__u16 bitsPerWord){
 	if(spi.device < 1){
 		printk(KERN_ALERT "SPI: SPI Device not open yet.\n");
 		return 1;
@@ -98,7 +98,7 @@ int setSPIBitsPerWord(__u16 bitsPerWord = BPW){
 	return 0;
 }
 
-int setSPIMode(__u8 mode = MODE){
+int setSPIMode(__u8 mode){
 	if(spi.device < 1){
 		printk(KERN_ALERT "SPI: SPI Device not open yet.\n");
 		return 1;
@@ -126,8 +126,8 @@ int closeSPI(void){
 }
 
 int initSPI(void){
-	if(openSPI() == 0){
-		return (setSPIMode() | setSPISpeed() | setSPIBitsPerWord() | setSPIDelay());
+	if(openSPI(DEVICE) == 0){
+		return (setSPIMode(MODE) | setSPISpeed(SPEED) | setSPIBitsPerWord(BPW) | setSPIDelay(DELAY));
 	}else{
 		return 1;
 	}
