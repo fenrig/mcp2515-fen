@@ -29,7 +29,7 @@ MODULE_LICENSE("Dual BSD/GPL");
 #define SPEED 5000
 #define DEVICE "/dev/spidev0.0"
 
-struct typedef{
+typedef struct{
 	int device = 0;
 	__u8 mode = 0xff;
 	__u16 bitsPerWord = 0xffff;
@@ -37,7 +37,7 @@ struct typedef{
 	__u32 speed = 0xffffffff;
 } spi_device;
 
-struct typedef{
+typedef struct{
 	__u8* rx = NULL;
 	__u8* tx = NULL;
 	__u64 rx_size = 0;
