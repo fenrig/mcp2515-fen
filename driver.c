@@ -1,5 +1,7 @@
 /* http://www.linuxchix.org/content/courses/kernel_hacking/lesson5
  * http://www.linuxjournal.com/article/8110?page=0,1
+ * http://tuomasnylund.fi/drupal6/content/making-embedded-linux-kernel-device-driver
+ * http://www.linuxjournal.com/article/6930
  */
 
 #include <linux/init.h>
@@ -14,7 +16,7 @@
 #include <linux/ioport.h>
 #include <asm/io.h>
 #include <mach/hardware.h>
-#include <linux/spi/spidev.h>
+#include <linux/spi/spi.h>
 #include <linux/types.h>
 #include <linux/delay.h>
 #include <linux/fcntl.h>
@@ -23,212 +25,64 @@
 MODULE_LICENSE("Dual BSD/GPL");
 #define MODULE_NAME "mcp2515-fen"
 // ------------------------
-// SPI PART
-
-#define MODE 0
-#define DELAY 0
-#define BPW 8
-#define SPEED 5000
-#define DEVICE "/dev/spidev0.0"
+// NEW SPI PART
 
 typedef struct{
-	int device;
-	__u8 mode;
-	__u16 bitsPerWord;
-	__u16 delay_usecs;
-	__u32 speed;
-} spi_device;
-
-typedef struct{
-	__u8* rx;
-	__u8* tx;
-	__u64 rx_size;
+	struct spi_device *spidev;
 } spi_data;
 
-spi_data spidata = {.rx = NULL, .tx = NULL, .rx_size = 0};
-spi_device spi = {.device = 0, .mode = 0xff, .bitsPerWord = 0xffff, .delay_usecs = 0x0000, .speed = 0xffffffff};
+spi_data spidata;
 
-mm_segment_t old_fs;
-
-int openSPI(char* devicename){
-	if(spi.device > 0){
-		printk(KERN_ALERT "SPI: SPI device already open, please close it.\n");
-		return 2;
-	}
-
-	mm_segment_t old_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-	spi.device = sys_open(devicename, O_RDWR);
-	if(spi.device < 1){
-		printk(KERN_ALERT "SPI: Couldn't open spi device\n");
-		return 1;
-	}
+static int spidriver_resume(struct spi_device *spi){
+	// No implementation
 	return 0;
 }
 
-int setSPIDelay(__u16 usecs){
-	spi.delay_usecs = usecs;
+static int spidriver_suspend(struct spi_device *spi, pm_message_t state){
+	// No implementation
 	return 0;
 }
 
-int setSPISpeed(__u32 speed){
-	if(spi.device < 1){
-		printk(KERN_ALERT "SPI: SPI Device not open yet.\n");
-		return 1;
-	}
-	if(ioctl(spi.device, SPI_IOC_WR_MAX_SPEED_HZ, &speed) < 0){
-		printk(KERN_ALERT "SPI: Failed setting Speed (WR)\n");
-		return 2;
-	}
-	if(ioctl(spi.device, SPI_IOC_RD_MAX_SPEED_HZ, &speed) < 0){
-		printk(KERN_ALERT "SPI: Failed setting Speed (RD)\n");
-		return 2;
-	}linux/types.h
-	spi.speed = speed;
+static int spidriver_remove(struct spi_device *spi){
+	// No implementation
 	return 0;
 }
 
-int setSPIBitsPerWord(__u16 bitsPerWord){
-	if(spi.device < 1){
-		printk(KERN_ALERT "SPI: SPI Device not open yet.\n");
-		return 1;
-	}
-	if(ioctl(spi.device, SPI_IOC_WR_BITS_PER_WORD, &bitsPerWord) < 0){
-		printk(KERN_ALERT "SPI: Failed setting Bits Per Word (WR)\n");
-		return 2;
-	}
-	if(ioctl(spi.device, SPI_IOC_RD_BITS_PER_WORD, &bitsPerWord) < 0){
-		printk(KERN_ALERT "SPI: Failed setting Bits Per Word (RD)\n");
-		return 2;
-	}
-	spi.bitsPerWord = bitsPerWord;
-	return 0;
-}
+static int __init spidriver_probe(struct spi_device *dev){
+	int ret = 0;
 
-int setSPIMode(__u8 mode){
-	if(spi.device < 1){
-		printk(KERN_ALERT "SPI: SPI Device not open yet.\n");
-		return 1;
-	}
-	if(ioctl(spi.device, SPI_IOC_WR_MODE, &mode) < 0){
-		printk(KERN_ALERT "SPI: Failed setting Mode (WR)\n");
-		return 2;
-	}
-	if(ioctl(spi.device, SPI_IOC_RD_MODE, &mode) < 0){
-		printk(KERN_ALERT "SPI: Failed setting Mode (RD)\n");
-		return 2;
-	}
-	spi.mode = mode;
-	return 0;
-}
 
-int closeSPI(void){
-	if(spi.device < 1){
-		printk(KERN_ALERT "SPI: SPI Device not open yet.\n");
-		return 0; // Returns 0 because SPI is closed
-	}
-	sys_close(spi.device);
-	set_fs(old_fs);
-	spi.device = 0;
-	return 0;
-}
+	printk(KERN_INFO "SPI: Probe started\n");
+
+	spidata.spidev = dev;
+	dev_set_drvdata(&dev->dev, &spidata); // gebruikt om data in te laden en te gebruiken in de spi struct functies
+	dev_info(&dev->dev, "spi registered");
+
+	return ret;
+} 
+
+static struct spi_driver spi_mcp2515_driver = {
+	.driver = {
+		.name = "spi-mcp2515",
+		.bus = &spi_bus_type, // line 87
+		.owner = THIS_MODULE,
+	},
+	.probe = spidriver_probe,
+	.remove = spidriver_remove,
+	.suspend = spidriver_suspend,
+	.resume = spidriver_resume,
+};
 
 int initSPI(void){
-	if(openSPI(DEVICE) == 0){
-		return (setSPIMode(MODE) | setSPISpeed(SPEED) | setSPIBitsPerWord(BPW) | setSPIDelay(DELAY));
-	}else{
-		return 1;
-	}
+	int ret = 0;
+	ret = spi_register_driver(&spi_mcp2515_driver);
+	if(ret)
+		printk(KERN_ALERT "SPI: Problem with spi_register_driver\n");
+	return ret;
 }
 
 int exitSPI(void){
-	closeSPI();
-	if(spidata.rx != NULL){
-		kfree(spidata.rx);
-		spidata.rx = NULL;
-	}
-}
 
-__s64 writeSPIData(const char* data, __s64 maxSize){
-// FULL DUPLEX
-	if(spi.device < 1){
-		printk(KERN_ALERT "SPI: SPI Device not open yet.\n");
-		return -1;
-	}
-	if(maxSize == -1){
-		const char* cur_ptr = data;
-		maxSize++; // maxSize = 0
-		while(*(cur_ptr) != '\0'){
-			maxSize++;
-			cur_ptr++;
-		}
-		if(maxSize == 0) return -1;
-	}else if(maxSize < 0) return -1;
-
-	spidata.tx = (__u8*) data;
-
-	if(spidata.rx != NULL){
-		kfree(spidata.rx);
-		spidata.rx = NULL;
-	}
-
-	spidata.rx = (__u8*) kmalloc(maxSize, 1); // 1 = sizeof(__u8)
-	spidata.rx_size = maxSize;
-
-	struct spi_ioc_transfer tr;
-
-	tr.tx_buf = (unsigned long)spidata.tx;
-	tr.rx_buf = (unsigned long)spidata.rx;
-	tr.len = maxSize;
-	tr.delay_usecs = spi.delay_usecs;
-	tr.speed_hz = spi.speed;
-	tr.bits_per_word = spi.bitsPerWord;
-
-	if((ioctl(spi.device, SPI_IOC_MESSAGE(1), &tr)) < 0){
-		printk(KERN_ALERT "SPI: Failed sending.\n");
-		return -1;
-	}
-	return maxSize;
-}
-
-__s64 readSPIData(char* data, __s64 maxSize){
-	if(spi.device < 1){
-		printk(KERN_ALERT "SPI: SPI Device not open yet.\n");
-		return -1;
-	}
-	if( maxSize < 1) return -1; 
-	if( spidata.rx_size == 0) return -1;
-
-	__u64 size;
-	if( spidata.rx_size > maxSize){
-		size = maxSize;
-		spidata.rx_size -= maxSize;
-	}else{
-		size = spidata.rx_size;
-		spidata.rx_size = 0;
-	}
-
-	__u64 i;
-	for(i = 0; i < size; i++){
-		data[i] = *(rx + i);
-	}
-
-	if(spidata.rx_size != 0){
-		__u8* new_rx = (__u8*) kmalloc(spidata.rx_size, 1); // sizeof(__u8) = 1
-		__u64 teller = 0;
-
-		for(i = size; i < spidata.rx_size; i++){
-			*(new_rx + teller) = *(spidata.rx + i);
-			teller++;
-		}
-		kfree(spidata.rx);<
-		spidata.rx = new_rx;
-	}else{
-		kfree(spidata.rx);
-		spidata.rx = NULL;
-	}
-	return size;
 }
 
 // -------------------------
@@ -254,15 +108,15 @@ __s64 readSPIData(char* data, __s64 maxSize){
 
 int writeCANRegister(__u8 reg, __u8 value){
 	__u8 transfer[3] = {WRITE, reg, value};
-	if(writeSPIData(transfer, 3) == -1) return 0;
+	if(spi_write(spidata.spidev, transfer, 3) == -1) return 0;
 	return 1;
 }
 
-int readCANRegister(__u8 reg){
+__u8 readCANRegister(__u8 reg){
 	__u8 transfer[3] = {READ, reg, GARBAGE};
 	__u8 register_value[3] = {0x00, 0x00, 0x00};
-	writeSPIData(transfer, 3);
-	readSPIData(register_value, 3);
+	spi_write(spidata.spidev, transfer, 3);
+	spi_read(spidata.spidev, register_value, 3);
 	return register_value[2];
 }
 
